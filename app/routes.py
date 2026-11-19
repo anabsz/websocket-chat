@@ -9,6 +9,6 @@ def index():
     return render_template("index.html")
 
 
-@main.route("/chat-info")
-def chat_info():
+@main.route("/health")
+def health():
     return "<span>Servidor de chat disponível</span>"

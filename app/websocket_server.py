@@ -1,3 +1,4 @@
+
 import asyncio
 import json
 import logging
@@ -8,58 +9,109 @@ from websockets.asyncio.server import serve
 HOST = "localhost"
 PORT = 8765
 
-connected_clients = set()
+connected_clients = {}
 
 
-async def broadcast(message):
-    if not connected_clients:
+async def send_message(websocket, data):
+    await websocket.send(json.dumps(data))
+
+
+async def broadcast(data):
+    clients = list(connected_clients)
+    if not clients:
         return
 
-    disconnected_clients = set()
+    message = json.dumps(data)
+    results = await asyncio.gather(*[client.send(message) for client in connected_clients], return_exceptions=True)
 
-    for client in connected_clients.copy():
-        try:
-            await client.send(message)
-        except Exception:
-            disconnected_clients.add(client)
+    for client, result in zip(list(connected_clients), results):
+        if isinstance(result, Exception):
+            connected_clients.pop(client, None)
 
-    connected_clients.difference_update(disconnected_clients)
+
+async def broadcast_users():
+    await broadcast({
+        "type": "users_update",
+        "users": list(connected_clients.values())
+    })
 
 
 async def handle_client(websocket):
-    connected_clients.add(websocket)
     client_address = websocket.remote_address
+    username = None
     logging.info("Cliente conectado: %s", client_address)
 
     try:
         async for message in websocket:
-            logging.info("Mensagem recebida de %s: %s", client_address, message)
+            logging.info(
+                "Mensagem recebida de %s: %s",
+                client_address,
+                message
+            )
 
             try:
                 data = json.loads(message)
             except json.JSONDecodeError:
-                await websocket.send(json.dumps({
+                await send_message(websocket, {
                     "type": "error",
                     "content": "Formato de mensagem inválido."
-                }))
+                })
                 continue
 
-            if data.get("type") == "chat_message":
-                response = {
+            message_type = data.get("type")
+            if message_type == "join":
+                requested_username = data.get("username", "").strip()
+                if not requested_username:
+                    await send_message(websocket, {
+                        "type": "error",
+                        "content": "Nome de usuário inválido."
+                    })
+                    continue
+
+                if username is not None:
+                    continue
+                username = requested_username[:30]
+                connected_clients[websocket] = username
+                logging.info("Usuário entrou: %s", username)
+
+                await broadcast({
+                    "type": "user_joined",
+                    "username": username
+                })
+
+                await broadcast_users()
+
+            elif message_type == "chat_message":
+                if websocket not in connected_clients:
+                    continue
+
+                content = data.get("content", "").strip()
+
+                if not content:
+                    continue
+
+                await broadcast({
                     "type": "chat_message",
-                    "username": data.get("username", "Anônimo"),
-                    "content": data.get("content", ""),
+                    "username": connected_clients[websocket],
+                    "content": content[:1000],
                     "timestamp": datetime.now(timezone.utc).isoformat()
-                }
+                })
 
-                await broadcast(json.dumps(response))
-
-    except Exception as error:
-        logging.error("Erro na conexão %s: %s", client_address, error)
+    except Exception:
+        logging.exception("Erro na conexão %s", client_address)
 
     finally:
-        connected_clients.discard(websocket)
-        logging.info("Cliente desconectado: %s", client_address)
+        disconnected_username = connected_clients.pop(websocket, None)
+
+        if disconnected_username:
+            logging.info("Usuário desconectado: %s", disconnected_username)
+            await broadcast({
+                "type": "user_left",
+                "username": disconnected_username
+            })
+            await broadcast_users()
+
+        logging.info("Conexão encerrada: %s", client_address)
 
 
 async def main():
@@ -67,9 +119,13 @@ async def main():
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s"
     )
-
     async with serve(handle_client, HOST, PORT):
-        logging.info("Servidor WebSocket iniciado em ws://%s:%s", HOST, PORT)
+        logging.info(
+            "Servidor WebSocket iniciado em ws://%s:%s",
+            HOST,
+            PORT
+        )
+
         await asyncio.Future()
 
 
