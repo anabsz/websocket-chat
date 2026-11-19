@@ -1,11 +1,84 @@
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Document</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Realtime Chat</title>
+
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
 </head>
 <body>
+
+    <main class="chat-container">
+
+        <header class="chat-header">
+            <div>
+                <h1>Ctrl Chat</h1>
+                <p>Converse em tempo real com outras pessoas.</p>
+            </div>
+
+            <div id="connection-status" class="status disconnected">
+                Desconectado
+            </div>
+        </header>
+
+        <section id="login-section" class="login-section">
+            <h2>Entrar no chat</h2>
+
+            <form id="login-form">
+                <input
+                    type="text"
+                    id="username"
+                    placeholder="Digite seu nome"
+                    maxlength="30"
+                    required
+                >
+
+                <button type="submit">Entrar</button>
+            </form>
+        </section>
+
+        <section id="chat-section" class="chat-section hidden">
+
+            <div class="chat-sidebar">
+                <h3>Usuários online</h3>
+                <ul id="users-list"></ul>
+            </div>
+
+            <div class="chat-content">
+
+                <div id="messages" class="messages">
+                    <div class="empty-message">
+                        Nenhuma mensagem ainda. Comece a conversar!
+                    </div>
+                </div>
+
+                <form id="message-form" class="message-form">
+                    <input
+                        type="text"
+                        id="message-input"
+                        placeholder="Digite sua mensagem..."
+                        autocomplete="off"
+                        required
+                    >
+
+                    <button type="submit">Enviar</button>
+                </form>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 
 </body>
 </html>
