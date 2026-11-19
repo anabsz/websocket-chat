@@ -24,7 +24,7 @@ async def broadcast(data):
     message = json.dumps(data)
     results = await asyncio.gather(*[client.send(message) for client in connected_clients], return_exceptions=True)
 
-    for client, result in zip(list(connected_clients), results):
+    for client, result in zip(clients, results):
         if isinstance(result, Exception):
             connected_clients.pop(client, None)
 
